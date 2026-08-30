@@ -1787,7 +1787,10 @@ line's path."
                  while next
                  do (should (<= (cdr next) (car this)))
                     (should (< (car next) (car this))))
-        (should (= (car (car (last regions))) (point-min)))
+        (should (= (ghostel--soft-wrap-line-beginning
+                    (car (car (last regions)))
+                    ghostel--soft-wrap-row-limit)
+                   (point-min)))
         (should (= lines (length (ghostel-test--link-runs))))
         ;; And the queue released its bounds once drained.
         (should-not ghostel--plain-link-detection-begin)
