@@ -182,25 +182,61 @@ row.  Navigation should land on the link only once, not on each chunk."
         (should (equal opened expected))))))
 
 (ert-deftest ghostel-test-open-schemeless-file-target ()
-  "Scheme-less OSC 8 targets resolve against the terminal directory."
+  "Bare OSC 8 targets resolve against the terminal directory."
   (let ((default-directory (file-name-as-directory
                             (make-temp-file "ghostel-link-dir-" t)))
-        opened)
+        opened col-arg)
     (unwind-protect
         (let ((file (expand-file-name "report café.md")))
           (write-region "report" nil file nil 'silent)
           (cl-letf (((symbol-function 'find-file-other-window)
-                     (lambda (path) (setq opened path))))
+                     (lambda (path) (setq opened path)))
+                    ((symbol-function 'move-to-column)
+                     (lambda (c &optional _force) (setq col-arg c))))
             (dolist (target (list "report café.md" "./report%20caf%C3%A9.md" file))
               (setq opened nil)
               (ghostel--open-link target)
               (should (equal opened file)))
-            (dolist (target '("" "missing.md" "mailto:user@example.com"
-                              "custom+scheme:report" "report%00.md"))
+            ;; The opener is stubbed, so :3:7 moves point in this buffer.
+            (with-temp-buffer
+              (insert "1\n2\n3\n4\n")
+              (setq opened nil col-arg nil)
+              (ghostel--open-link "report%20caf%C3%A9.md:3:7")
+              (should (equal opened file))
+              (should (equal (line-number-at-pos) 3))
+              (should (equal col-arg 6)))
+            ;; NAME:LINE with no directory part is not a URI scheme.
+            (write-region "plain" nil (expand-file-name "plain.md") nil 'silent)
+            (setq opened nil)
+            (ghostel--open-link "plain.md:2")
+            (should (equal opened (expand-file-name "plain.md")))
+            (dolist (target '("missing.md" "report%00.md"))
               (setq opened nil)
               (ghostel--open-link target)
               (should-not opened))))
       (delete-directory default-directory t))))
+
+(ert-deftest ghostel-test-open-bare-path-remote ()
+  "An absolute bare path stays on the terminal's remote host."
+  (let ((default-directory "/ssh:user@remote:/home/")
+        opened)
+    (cl-letf (((symbol-function 'find-file-other-window)
+               (lambda (path) (setq opened path)))
+              ((symbol-function 'file-exists-p) (lambda (_) t)))
+      (ghostel--open-link "/tmp/x.md")
+      (should (equal opened "/ssh:user@remote:/tmp/x.md"))
+      (ghostel--open-link "notes.md")
+      (should (equal opened "/ssh:user@remote:/home/notes.md")))))
+
+(ert-deftest ghostel-test-open-link-scheme-browse-url ()
+  "Any URI scheme, not only `scheme://', goes to `browse-url'."
+  (let ((urls '("mailto:user@example.com" "custom+scheme:report"
+                "https://example.com/" "HTTPS://example.com/"))
+        browsed)
+    (cl-letf (((symbol-function 'browse-url)
+               (lambda (url &rest _) (push url browsed))))
+      (mapc #'ghostel--open-link urls)
+      (should (equal (reverse browsed) urls)))))
 
 (ert-deftest ghostel-test-uri-at-pos-returns-string-help-echo ()
   "`ghostel--uri-at-pos' returns a string `help-echo'."

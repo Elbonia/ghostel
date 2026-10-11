@@ -167,26 +167,26 @@ For `eldoc-documentation-functions'."
                       uri)))
     (funcall callback link :thing "Link" :face 'link)))
 
+(defun ghostel--open-file-at (file line col)
+  "Open existing FILE in another window at 1-based digit strings LINE and COL."
+  (when (file-exists-p file)
+    (find-file-other-window file)
+    (when line
+      (goto-char (point-min))
+      (forward-line (1- (max 1 (string-to-number line))))
+      (when col (move-to-column (max 0 (1- (string-to-number col))))))))
+
 (defun ghostel--open-link (url)
   "Open URL, dispatching by scheme.
-file:// and fileref: URIs open in another window, file:// over TRAMP
-for a remote host.  A fileref: (auto-detected file[:line[:col]]) opens
-at its position.  Existing scheme-less file targets are resolved against
-`default-directory'.  Other schemes use `browse-url'."
+file:// and fileref: URIs open in another window.
+A fileref: (auto-detected file[:line[:col]]) opens at its position.
+Other schemes use `browse-url'.
+A bare path[:line[:col]] resolves against `default-directory'."
   (when (and url (stringp url))
     (cond
      ((string-match ghostel--fileref-regex url)
-      (let ((file (match-string 1 url))
-            (line (and (match-string 2 url)
-                       (string-to-number (match-string 2 url))))
-            (col (and (match-string 3 url)
-                      (string-to-number (match-string 3 url)))))
-        (when (file-exists-p file)
-          (find-file-other-window file)
-          (when line
-            (goto-char (point-min))
-            (forward-line (1- (max 1 line)))
-            (when col (move-to-column (max 0 (1- col))))))))
+      (ghostel--open-file-at (match-string 1 url)
+                             (match-string 2 url) (match-string 3 url)))
      ((string-match "\\`file://\\([^/]*\\)\\(/.*\\)" url)
       (let ((host (downcase (match-string 1 url)))
             (file (ghostel--file-uri-decode (match-string 2 url))))
@@ -197,15 +197,27 @@ at its position.  Existing scheme-less file targets are resolved against
                  ((eq system-type 'windows-nt)
                   (ghostel--windows-local-path file))
                  (t file))))))
-     ((string-match-p "\\`[a-z]+://" url)
+     ;; A Windows drive letter is not a scheme, nor is NAME:LINE[:COL].
+     ((and (not (file-name-absolute-p url))
+           (string-match-p "\\`[[:alpha:]][[:alnum:]+.-]*:" url)
+           (not (string-match-p "\\`[^:/]+:[0-9]+\\(?::[0-9]+\\)?\\'" url)))
       (browse-url url))
-     ((and (not (equal url ""))
-           (or (file-name-absolute-p url)
-               (not (string-match-p "\\`[[:alpha:]][[:alnum:]+.-]*:" url))))
-      (when-let* ((file (ghostel--file-uri-decode url))
-                  (path (expand-file-name file))
-                  ((file-exists-p path)))
-        (find-file-other-window path))))))
+     ;; `expand-file-name' alone resolves an absolute name locally.
+     ((when-let* ((decoded (ghostel--file-uri-decode url))
+                  (ref (concat "fileref:" decoded))
+                  ((string-match ghostel--fileref-regex ref)))
+        ;; Match data first: `file-remote-p' runs TRAMP regexes.
+        (let* ((file (match-string 1 ref))
+               (line (match-string 2 ref))
+               (col (match-string 3 ref))
+               (remote (file-remote-p default-directory)))
+          (ghostel--open-file-at
+           (expand-file-name
+            (cond ((not (file-name-absolute-p file)) file)
+                  (remote (concat remote file))
+                  ((eq system-type 'windows-nt) (ghostel--windows-local-path file))
+                  (t file)))
+           line col)))))))
 
 (defun ghostel-open-link-at-click (event)
   "Open the hyperlink at the mouse click EVENT position."
