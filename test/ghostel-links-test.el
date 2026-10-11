@@ -181,6 +181,27 @@ row.  Navigation should land on the link only once, not on each chunk."
         (ghostel--open-link url)
         (should (equal opened expected))))))
 
+(ert-deftest ghostel-test-open-schemeless-file-target ()
+  "Scheme-less OSC 8 targets resolve against the terminal directory."
+  (let ((default-directory (file-name-as-directory
+                            (make-temp-file "ghostel-link-dir-" t)))
+        opened)
+    (unwind-protect
+        (let ((file (expand-file-name "report café.md")))
+          (write-region "report" nil file nil 'silent)
+          (cl-letf (((symbol-function 'find-file-other-window)
+                     (lambda (path) (setq opened path))))
+            (dolist (target (list "report café.md" "./report%20caf%C3%A9.md" file))
+              (setq opened nil)
+              (ghostel--open-link target)
+              (should (equal opened file)))
+            (dolist (target '("" "missing.md" "mailto:user@example.com"
+                              "custom+scheme:report" "report%00.md"))
+              (setq opened nil)
+              (ghostel--open-link target)
+              (should-not opened))))
+      (delete-directory default-directory t))))
+
 (ert-deftest ghostel-test-uri-at-pos-returns-string-help-echo ()
   "`ghostel--uri-at-pos' returns a string `help-echo'."
   (with-temp-buffer

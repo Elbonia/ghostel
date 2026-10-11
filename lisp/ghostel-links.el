@@ -171,7 +171,8 @@ For `eldoc-documentation-functions'."
   "Open URL, dispatching by scheme.
 file:// and fileref: URIs open in another window, file:// over TRAMP
 for a remote host.  A fileref: (auto-detected file[:line[:col]]) opens
-at its position.  Other schemes use `browse-url'."
+at its position.  Existing scheme-less file targets are resolved against
+`default-directory'.  Other schemes use `browse-url'."
   (when (and url (stringp url))
     (cond
      ((string-match ghostel--fileref-regex url)
@@ -197,7 +198,14 @@ at its position.  Other schemes use `browse-url'."
                   (ghostel--windows-local-path file))
                  (t file))))))
      ((string-match-p "\\`[a-z]+://" url)
-      (browse-url url)))))
+      (browse-url url))
+     ((and (not (equal url ""))
+           (or (file-name-absolute-p url)
+               (not (string-match-p "\\`[[:alpha:]][[:alnum:]+.-]*:" url))))
+      (when-let* ((file (ghostel--file-uri-decode url))
+                  (path (expand-file-name file))
+                  ((file-exists-p path)))
+        (find-file-other-window path))))))
 
 (defun ghostel-open-link-at-click (event)
   "Open the hyperlink at the mouse click EVENT position."
