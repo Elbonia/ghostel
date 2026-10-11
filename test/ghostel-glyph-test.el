@@ -477,6 +477,60 @@ request floor(12 * 10/13) / 12 = 0.75 instead."
     (should-not (equal (get-text-property (point) 'display) '(space :width 0)))
     (should (get-text-property (point) 'face))))
 
+(ert-deftest ghostel-test-glyph-adjust-standalone-icon-claims-bold-space ()
+  "A standalone icon claims a following bold space."
+  :tags '(native)
+  (ghostel-test--with-oversized-icon-rendered "\e[1m⏵ x"
+    (should (equal (char-after) ?⏵))
+    (should (equal (ghostel-test--display-min-width-at-point) '(2)))
+    (forward-char 1)
+    (should (equal (get-text-property (point) 'display) '(space :width 0)))))
+
+(ert-deftest ghostel-test-glyph-adjust-standalone-icon-claims-fg-colored-space ()
+  "A standalone icon claims a following foreground-colored space."
+  :tags '(native)
+  (ghostel-test--with-oversized-icon-rendered "\e[34m⏵ x"
+    (should (equal (char-after) ?⏵))
+    (should (equal (ghostel-test--display-min-width-at-point) '(2)))
+    (forward-char 1)
+    (should (equal (get-text-property (point) 'display) '(space :width 0)))))
+
+(ert-deftest ghostel-test-glyph-adjust-standalone-icon-claims-prompt-space ()
+  "A standalone icon claims a following prompt space."
+  :tags '(native)
+  (ghostel-test--with-oversized-icon-rendered "\e]133;A\a⏵ x"
+    (should (equal (char-after) ?⏵))
+    (should (equal (ghostel-test--display-min-width-at-point) '(2)))
+    (forward-char 1)
+    (should (equal (get-text-property (point) 'display) '(space :width 0)))))
+
+(ert-deftest ghostel-test-glyph-adjust-standalone-icon-does-not-claim-bg-colored-space ()
+  "A standalone icon does not hide a following background-colored space."
+  :tags '(native)
+  (ghostel-test--with-oversized-icon-rendered "⏵\e[44m \e[0mx"
+    (should (equal (char-after) ?⏵))
+    (should (equal (ghostel-test--display-min-width-at-point) '(1)))
+    (forward-char 1)
+    (should-not (equal (get-text-property (point) 'display) '(space :width 0)))))
+
+(ert-deftest ghostel-test-glyph-adjust-standalone-icon-does-not-claim-erased-bg-space ()
+  "A standalone icon does not hide a following background-erased space."
+  :tags '(native)
+  (ghostel-test--with-oversized-icon-rendered "⏵\e[44m\e[K\e[0m\e[2;1H"
+    (should (equal (char-after) ?⏵))
+    (should (equal (ghostel-test--display-min-width-at-point) '(1)))
+    (forward-char 1)
+    (should-not (equal (get-text-property (point) 'display) '(space :width 0)))))
+
+(ert-deftest ghostel-test-glyph-adjust-standalone-icon-does-not-claim-underlined-space ()
+  "A standalone icon does not hide a following underlined space."
+  :tags '(native)
+  (ghostel-test--with-oversized-icon-rendered "⏵\e[4m \e[0mx"
+    (should (equal (char-after) ?⏵))
+    (should (equal (ghostel-test--display-min-width-at-point) '(1)))
+    (forward-char 1)
+    (should-not (equal (get-text-property (point) 'display) '(space :width 0)))))
+
 (ert-deftest ghostel-test-glyph-adjust-last-column-no-claim ()
   "A glyph at the last column does not claim out-of-bounds space."
   :tags '(native)

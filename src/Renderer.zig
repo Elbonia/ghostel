@@ -456,6 +456,16 @@ const CellPropKey = struct {
             .bg_color = bg_color,
         };
     }
+
+    /// Whether a space with this key looks different from a plain space.
+    fn spaceVisiblyStyled(self: *const CellPropKey, page: *const gt.Page) bool {
+        if (self.bg_color != .none) return true;
+        if (self.style_id == 0) return false;
+        const style = page.styles.get(page.memory, self.style_id);
+        const f = style.flags;
+        return style.bg_color != .none or f.inverse or f.strikethrough or
+            f.overline or f.underline != .none;
+    }
 };
 
 pub const SpanContent = struct {
@@ -491,7 +501,8 @@ pub const SpanContent = struct {
             }
             for (span.runs.items) |run| {
                 if (pos >= run.start_char and pos < run.end_char) {
-                    return run.key != null;
+                    const key = run.key orelse return false;
+                    return key.spaceVisiblyStyled(span.node.?.page());
                 }
             }
             return false;
