@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Loading `ghostel.el` without the native module no longer logs a
+  "Native module not found" warning.  Byte-compiling the package at
+  install time loads the file before the module exists, so every fresh
+  install left the warning in `*Warnings*`.  The interactive entry
+  points still install the module via `ghostel-module-auto-install`.
+
 ## [0.57.0] — 2026-10-09
 
 ### Added
